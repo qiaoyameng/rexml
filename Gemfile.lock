@@ -1,0 +1,43 @@
+PATH
+  remote: .
+  specs:
+    rexml (3.4.5)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    benchmark_driver (0.17.0)
+    erb (6.0.7)
+    logger (1.7.0)
+    power_assert (3.1.0)
+    prism (1.9.0)
+    rake (13.4.2)
+    rbs (4.2.0)
+      logger
+      prism (>= 1.6.0)
+      tsort
+    rdoc (8.1.0)
+      erb
+      prism (>= 1.6.0)
+      rbs (>= 4.0.0)
+      tsort
+    test-unit (3.7.8)
+      power_assert
+    test-unit-ruby-core (1.0.16)
+      test-unit (>= 3.7.2)
+    tsort (0.2.0)
+
+PLATFORMS
+  ruby
+  x86_64-linux-gnu
+
+DEPENDENCIES
+  benchmark_driver
+  rake
+  rdoc
+  rexml!
+  test-unit
+  test-unit-ruby-core
+
+BUNDLED WITH
+   2.6.7
