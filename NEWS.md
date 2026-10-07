@@ -1,5 +1,16 @@
 # News
 
+## 3.4.5 - Unreleased
+
+### Improvement
+
+  * Added `REXML.parse_fragment(source, context:)` and
+    `REXML::Document.parse_fragment(source, context:)` for parsing
+    standalone XML fragments with multiple sibling nodes. The fragment
+    inherits the in-scope namespaces of `context`, rejects unbound
+    prefixes, XML declarations, DOCTYPEs and end tags that try to close
+    the context element.
+
 ## 3.4.4 - 2025-09-10 {#version-3-4-4}
 
 ### Improvement

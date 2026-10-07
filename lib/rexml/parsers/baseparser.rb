@@ -166,13 +166,19 @@ module REXML
       end
       private_constant :Private
 
-      def initialize( source )
+      def initialize( source, fragment: false, initial_namespaces: nil )
         self.stream = source
         @listeners = []
         @prefixes = Set.new
         @entity_expansion_count = 0
         @entity_expansion_limit = Security.entity_expansion_limit
         @entity_expansion_text_limit = Security.entity_expansion_text_limit
+        @fragment_mode = fragment
+        if initial_namespaces
+          initial_namespaces.each do |prefix, uri|
+            @namespaces[prefix] = uri unless prefix == "xmlns"
+          end
+        end
         @source.ensure_buffer
         @version = nil
       end
@@ -272,6 +278,8 @@ module REXML
             raise ParseException.new("Missing end tag for '#{path}'", @source)
           end
 
+          return [ :end_document ] if @fragment_mode
+
           unless @document_status == :in_element
             raise ParseException.new("Malformed XML: No root element", @source)
           end
@@ -286,11 +294,21 @@ module REXML
         if @document_status == nil
           start_position = @source.position
           if @source.match?("<?", true)
+            if @fragment_mode and @source.match?(/\Axml(?=\s|\z)/u, false)
+              @source.position = start_position
+              raise ParseException.new(
+                "Malformed XML fragment: XML declaration is not allowed", @source)
+            end
             return process_instruction
           elsif @source.match?("<!", true)
             if @source.match?("--", true)
               return [ :comment, process_comment ]
             elsif @source.match?("DOCTYPE", true)
+              if @fragment_mode
+                @source.position = start_position
+                raise ParseException.new(
+                  "Malformed XML fragment: DOCTYPE is not allowed", @source)
+              end
               base_error_message = "Malformed DOCTYPE"
               unless @source.skip_spaces
                 if @source.match?(">")
@@ -445,11 +463,12 @@ module REXML
             # here explicitly.
             @source.ensure_buffer
             if @source.match?("/", true)
-              @namespaces_restore_stack.pop
               last_tag = @tags.pop
               md = @source.match(Private::CLOSE_PATTERN, true)
               if md and !last_tag
-                message = "Unexpected top-level end tag (got '#{md[1]}')"
+                message = @fragment_mode ?
+                  "Unexpected end tag at the fragment boundary (got '#{md[1]}')" :
+                  "Unexpected top-level end tag (got '#{md[1]}')"
                 raise REXML::ParseException.new(message, @source)
               end
               if md.nil? or last_tag != md[1]
@@ -458,6 +477,7 @@ module REXML
                 @source.position = start_position if md.nil?
                 raise REXML::ParseException.new(message, @source)
               end
+              pop_namespaces_restore
               return [ :end_element, last_tag ]
             elsif @source.match?("!", true)
               #STDERR.puts "SOURCE BUFFER = #{source.buffer}, #{source.buffer.size}"
@@ -499,7 +519,7 @@ module REXML
                 @closed = tag
                 pop_namespaces_restore
               else
-                if @tags.empty? and @have_root
+                if !@fragment_mode and @tags.empty? and @have_root
                   raise ParseException.new("Malformed XML: Extra tag at the end of the document (got '<#{tag}')", @source)
                 end
                 @tags.push( tag )
@@ -513,14 +533,14 @@ module REXML
               @source.position -= "<".bytesize
             end
             if @tags.empty?
-              unless /\A\s*\z/.match?(text)
+              unless @fragment_mode or /\A\s*\z/.match?(text)
                 if @have_root
                   raise ParseException.new("Malformed XML: Extra content at the end of the document (got '#{text}')", @source)
                 else
                   raise ParseException.new("Malformed XML: Content at the start of the document (got '#{text}')", @source)
                 end
               end
-              return pull_event if @have_root
+              return pull_event if @have_root and !@fragment_mode and /\A\s*\z/.match?(text)
             end
             return [ :text, text ]
           end

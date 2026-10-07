@@ -12,6 +12,7 @@ require_relative "output"
 require_relative "parsers/baseparser"
 require_relative "parsers/streamparser"
 require_relative "parsers/treeparser"
+require_relative "fragment"
 
 module REXML
   # Represents an XML document.
@@ -402,6 +403,15 @@ module REXML
 
     def Document::parse_stream( source, listener )
       Parsers::StreamParser.new( source, listener ).parse
+    end
+
+    # :call-seq:
+    #   REXML::Document.parse_fragment(source, context:) -> array_of_nodes
+    #
+    # Parses an XML fragment in the namespace context of +context+;
+    # see REXML.parse_fragment.
+    def Document::parse_fragment( source, context: )
+      REXML.parse_fragment(source, context: context)
     end
 
     # Set the entity expansion limit. By default the limit is set to 10000.
