@@ -5,9 +5,9 @@ require_relative '../undefinednamespaceexception'
 module REXML
   module Parsers
     class TreeParser
-      def initialize( source, build_context = Document.new )
+      def initialize( source, build_context = Document.new, fragment_namespaces: nil )
         @build_context = build_context
-        @parser = Parsers::BaseParser.new( source )
+        @parser = Parsers::BaseParser.new( source, fragment_namespaces: fragment_namespaces )
       end
 
       def add_listener( listener )

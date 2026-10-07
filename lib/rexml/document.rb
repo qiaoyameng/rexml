@@ -1,6 +1,7 @@
 # frozen_string_literal: false
 require_relative "security"
 require_relative "element"
+require_relative "documentfragment"
 require_relative "xmldecl"
 require_relative "source"
 require_relative "comment"
@@ -402,6 +403,61 @@ module REXML
 
     def Document::parse_stream( source, listener )
       Parsers::StreamParser.new( source, listener ).parse
+    end
+
+    # :call-seq:
+    #   Document.parse_fragment(source, context: element) -> document_fragment
+    #
+    # Parses +source+ as an XML fragment and returns a
+    # REXML::DocumentFragment containing the parsed sibling nodes.
+    # Unlike Document.new, which requires a complete document with a
+    # single root element, a fragment may contain any mixture of
+    # elements, text, comments and processing instructions at the top
+    # level:
+    #
+    #   context = REXML::Document.new("<root xmlns:x='urn:x'/>").root
+    #   fragment = REXML::Document.parse_fragment(
+    #     "text<x:a/><x:b/><!--note--><?go?>",
+    #     context: context
+    #   )
+    #   fragment.children.size # => 5
+    #
+    # The fragment inherits the namespace bindings visible at +context+
+    # (an object that responds to +namespaces+, typically a
+    # REXML::Element), so prefixed names in the fragment resolve exactly
+    # as they would inside the context element.  Namespace declarations
+    # inside the fragment are scoped to their own subtree, and using a
+    # prefix that is bound neither in the context nor in the fragment
+    # itself raises REXML::UndefinedNamespaceException.  The context is
+    # only read, never modified.
+    #
+    # An XML declaration or a DOCTYPE is not allowed in a fragment, and
+    # an end tag that does not close an element opened inside the
+    # fragment itself (for example one that tries to close the context
+    # element) raises REXML::ParseException.  The source is parsed
+    # directly, without being wrapped in a synthetic container element,
+    # so error positions are relative to the fragment source itself.
+    #
+    # The returned fragment is independent: it belongs to no document.
+    # Because REXML resolves namespaces dynamically from ancestors,
+    # moving a node out of the fragment into another tree does not
+    # carry the inherited bindings along; declare the needed namespaces
+    # explicitly at the new location (see REXML::DocumentFragment)
+    # instead of renaming the node, so that its expanded name is
+    # preserved.
+    def Document.parse_fragment( source, context: )
+      inherited_namespaces = context.namespaces
+      fragment = DocumentFragment.new(inherited_namespaces)
+      parser_namespaces = {}
+      inherited_namespaces.each do |prefix, uri|
+        # The default namespace ("xmlns") binds no prefix, so it is not
+        # needed to validate prefixed names during parsing.
+        parser_namespaces[prefix] = uri unless prefix == "xmlns"
+      end
+      Parsers::TreeParser.new(
+        source, fragment, fragment_namespaces: parser_namespaces
+      ).parse
+      fragment
     end
 
     # Set the entity expansion limit. By default the limit is set to 10000.

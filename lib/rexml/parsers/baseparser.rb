@@ -166,7 +166,14 @@ module REXML
       end
       private_constant :Private
 
-      def initialize( source )
+      # When +fragment_namespaces+ is not nil, the source is parsed as a
+      # document fragment: multiple top-level nodes are allowed and
+      # +fragment_namespaces+ (a hash mapping prefixes to URIs) seeds the
+      # namespace bindings visible at the parse context.  The source is
+      # parsed as-is; it is never wrapped in a synthetic container
+      # element, so error positions stay relative to the source itself.
+      def initialize( source, fragment_namespaces: nil )
+        @fragment_namespaces = fragment_namespaces
         self.stream = source
         @listeners = []
         @prefixes = Set.new
@@ -200,6 +207,18 @@ module REXML
         @entities = []
         @namespaces = {"xml" => Private::XML_PREFIXED_NAMESPACE}
         @namespaces_restore_stack = []
+        if fragment_mode?
+          @namespaces.update(@fragment_namespaces)
+          # A fragment is parsed as the content of its context element:
+          # the enclosing element is implicitly already open, so text,
+          # comments and processing instructions may appear at the top
+          # level, while an XML declaration or a DOCTYPE may not.
+          @document_status = :in_element
+        end
+      end
+
+      def fragment_mode?
+        not @fragment_namespaces.nil?
       end
 
       def position
@@ -445,7 +464,14 @@ module REXML
             # here explicitly.
             @source.ensure_buffer
             if @source.match?("/", true)
-              @namespaces_restore_stack.pop
+              if fragment_mode? and not @namespaces_restore_stack.empty?
+                # Keep namespace declarations scoped to their own
+                # subtree inside a fragment, so that a prefix cannot
+                # leak out of the element that declared it.
+                pop_namespaces_restore
+              else
+                @namespaces_restore_stack.pop
+              end
               last_tag = @tags.pop
               md = @source.match(Private::CLOSE_PATTERN, true)
               if md and !last_tag
@@ -499,7 +525,7 @@ module REXML
                 @closed = tag
                 pop_namespaces_restore
               else
-                if @tags.empty? and @have_root
+                if @tags.empty? and @have_root and not fragment_mode?
                   raise ParseException.new("Malformed XML: Extra tag at the end of the document (got '<#{tag}')", @source)
                 end
                 @tags.push( tag )
@@ -512,7 +538,7 @@ module REXML
             if text.chomp!("<")
               @source.position -= "<".bytesize
             end
-            if @tags.empty?
+            if @tags.empty? and not fragment_mode?
               unless /\A\s*\z/.match?(text)
                 if @have_root
                   raise ParseException.new("Malformed XML: Extra content at the end of the document (got '#{text}')", @source)
