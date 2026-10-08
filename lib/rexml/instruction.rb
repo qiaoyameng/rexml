@@ -38,7 +38,6 @@ module REXML
           "<#{target.inspect}>"
         raise ArgumentError, message
       end
-      @content.strip! if @content
     end
 
     def clone
